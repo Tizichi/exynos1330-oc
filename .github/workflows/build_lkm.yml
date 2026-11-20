@@ -9,8 +9,9 @@ jobs:
       run: sudo apt-get update && sudo apt-get install -y build-essential bc bison flex libssl-dev libelf-dev git clang llvm lld python3
     - name: Build
       run: |
-        REPO="https://googlesource.com"
-        git clone --depth=1 -b android13-5.15-lts "${REPO}/kernel/common" kernel_src
+        H="android"
+        D="googlesource.com"
+        git clone --depth=1 -b android13-5.15-lts "https://${H}.${D}/kernel/common" kernel_src
         cd kernel_src
         ./scripts/config --file arch/arm64/configs/gki_defconfig -e CONFIG_MODULES -e CONFIG_MODVERSIONS --set-str CONFIG_LOCALVERSION "-android13-3-34492332"
         make ARCH=arm64 LLVM=1 LLVM_IAS=1 gki_defconfig modules_prepare
