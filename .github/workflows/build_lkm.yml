@@ -9,6 +9,7 @@ jobs:
       run: sudo apt-get update && sudo apt-get install -y build-essential bc bison flex libssl-dev libelf-dev git clang llvm lld python3
     - name: Build
       run: |
+        echo "obj-m := exynos_oc.o" > $GITHUB_WORKSPACE/Makefile
         H="android"
         D="googlesource.com"
         git clone --depth=1 -b android13-5.15-lts "https://${H}.${D}/kernel/common" kernel_src
@@ -16,6 +17,7 @@ jobs:
         ./scripts/config --file arch/arm64/configs/gki_defconfig -e CONFIG_MODULES -e CONFIG_MODVERSIONS -d CONFIG_MODULE_SIG --set-str CONFIG_LOCALVERSION "-android13-3-34492332"
         make ARCH=arm64 LLVM=1 LLVM_IAS=1 gki_defconfig modules_prepare
         make -C $GITHUB_WORKSPACE/kernel_src M=$GITHUB_WORKSPACE ARCH=arm64 LLVM=1 LLVM_IAS=1 modules
+        ls -lh $GITHUB_WORKSPACE/*.ko
     - uses: actions/upload-artifact@v4
       with:
         name: exynos_oc_lkm
