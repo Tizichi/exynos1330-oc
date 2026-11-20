@@ -13,10 +13,9 @@ jobs:
         D="googlesource.com"
         git clone --depth=1 -b android13-5.15-lts "https://${H}.${D}/kernel/common" kernel_src
         cd kernel_src
-        ./scripts/config --file arch/arm64/configs/gki_defconfig -e CONFIG_MODULES -e CONFIG_MODVERSIONS --set-str CONFIG_LOCALVERSION "-android13-3-34492332"
+        ./scripts/config --file arch/arm64/configs/gki_defconfig -e CONFIG_MODULES -e CONFIG_MODVERSIONS -d CONFIG_MODULE_SIG --set-str CONFIG_LOCALVERSION "-android13-3-34492332"
         make ARCH=arm64 LLVM=1 LLVM_IAS=1 gki_defconfig modules_prepare
-        cd $GITHUB_WORKSPACE
-        make ARCH=arm64 LLVM=1 LLVM_IAS=1 KERNEL_SRC=$GITHUB_WORKSPACE/kernel_src
+        make -C $GITHUB_WORKSPACE/kernel_src M=$GITHUB_WORKSPACE ARCH=arm64 LLVM=1 LLVM_IAS=1 modules
     - uses: actions/upload-artifact@v4
       with:
         name: exynos_oc_lkm
