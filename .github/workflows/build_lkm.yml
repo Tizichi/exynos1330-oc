@@ -1,1 +1,22 @@
+name: Build LKM
+on: [push, workflow_dispatch]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Setup
+      run: sudo apt-get update && sudo apt-get install -y build-essential bc bison flex libssl-dev libelf-dev git clang llvm lld python3
+    - name: Build
+      run: |
+        git clone --depth=1 -b android13-5.15-lts https://googlesource.com kernel_src
+        cd kernel_src
+        ./scripts/config --file arch/arm64/configs/gki_defconfig -e CONFIG_MODULES -e CONFIG_MODVERSIONS --set-str CONFIG_LOCALVERSION "-android13-3-34492332"
+        make ARCH=arm64 LLVM=1 LLVM_IAS=1 gki_defconfig modules_prepare
+        cd $GITHUB_WORKSPACE
+        make ARCH=arm64 LLVM=1 LLVM_IAS=1 KERNEL_SRC=$GITHUB_WORKSPACE/kernel_src
+    - uses: actions/upload-artifact@v4
+      with:
+        name: exynos_oc_lkm
+        path: exynos_oc.ko
 
