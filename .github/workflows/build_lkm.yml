@@ -15,10 +15,7 @@ jobs:
         #include <linux/init.h>
 
         static unsigned long pkbdev_addr = 0xffffffc001d03a18UL;
-        module_param(pkbdev_addr, ulong, 0444);
-
         static unsigned int target_gpu_khz = 1053000;
-        module_param(target_gpu_khz, uint, 0444);
 
         static int __init exynos_oc_init(void) {
             void **pkbdev_ptr = (void **)pkbdev_addr;
