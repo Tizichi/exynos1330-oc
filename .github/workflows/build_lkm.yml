@@ -9,6 +9,77 @@ jobs:
       run: sudo apt-get update && sudo apt-get install -y build-essential bc bison flex libssl-dev libelf-dev git clang llvm lld python3
     - name: Build
       run: |
+        cat << 'EOF' > $GITHUB_WORKSPACE/exynos_oc.c
+        #include <linux/module.h>
+        #include <linux/kernel.h>
+        #include <linux/init.h>
+        #include <linux/io.h>
+        #include <linux/proc_fs.h>
+        #include <linux/uaccess.h>
+
+        static unsigned long pkbdev_addr = 0xffffffc001d03a18UL;
+        module_param(pkbdev_addr, ulong, 0444);
+
+        static unsigned int target_gpu_khz = 1053000;
+        module_param(target_gpu_khz, uint, 0444);
+
+        static void *ect_virt = NULL;
+        static struct proc_dir_entry *ect_entry = NULL;
+
+        static ssize_t ect_read(struct file *file, char __user *buf, size_t count, loff_t *ppos) {
+            if (!ect_virt) return -EFAULT;
+            return simple_read_from_buffer(buf, count, ppos, ect_virt, 0x3a000);
+        }
+
+        static const struct proc_ops ect_fops = {
+            .proc_read = ect_read,
+        };
+
+        static int patch_mali_table_in_ram(void) {
+            void **pkbdev_ptr = (void **)pkbdev_addr;
+            unsigned char *base;
+            size_t i;
+            int patched = 0;
+
+            if (!pkbdev_ptr || !(*pkbdev_ptr)) return -EFAULT;
+            base = (unsigned char *)(*pkbdev_ptr);
+
+            for (i = 0; i < 65536 - 16; i += 4) {
+                u32 *p = (u32 *)(base + i);
+                if (*(p + 0) == 949000 && *(p + 1) == 78 && *(p + 2) == 95) {
+                    pr_info("exynos_oc: Patching gpu_dvfs_table +0x%zx (949000 -> %u kHz)\n", i, target_gpu_khz);
+                    *(p + 0) = target_gpu_khz;
+                    patched++;
+                }
+            }
+            return patched;
+        }
+
+        static int __init exynos_oc_init(void) {
+            int count = patch_mali_table_in_ram();
+            pr_info("exynos_oc: Patched %d entries in RAM\n", count);
+
+            ect_virt = memremap(0x90000000UL, 0x3a000, MEMREMAP_WB);
+            if (ect_virt) {
+                ect_entry = proc_create("exynos_ect", 0444, NULL, &ect_fops);
+                pr_info("exynos_oc: Mapped ECT (0x90000000) to /proc/exynos_ect\n");
+            }
+            return 0;
+        }
+
+        static void __exit exynos_oc_exit(void) {
+            if (ect_entry) proc_remove(ect_entry);
+            if (ect_virt) memunmap(ect_virt);
+            pr_info("exynos_oc: Unloaded\n");
+        }
+
+        module_init(exynos_oc_init);
+        module_exit(exynos_oc_exit);
+        MODULE_LICENSE("GPL");
+        MODULE_AUTHOR("HardwareEngineer");
+        MODULE_DESCRIPTION("Exynos 1330 GPU OC & ECT Dumper");
+        EOF
+
         echo "obj-m := exynos_oc.o" > $GITHUB_WORKSPACE/Makefile
         H="android"
         D="googlesource.com"
@@ -16,7 +87,7 @@ jobs:
         cd kernel_src
         sed -i "s/^SUBLEVEL = .*/SUBLEVEL = 197/" Makefile
         ./scripts/config --file arch/arm64/configs/gki_defconfig \
-          -e CONFIG_MODULES \
+          -e CONFIG_MODULES -e CONFIG_LTO_NONE \
           -d CONFIG_MODVERSIONS -d CONFIG_MODULE_SIG -d CONFIG_LTO_CLANG_FULL -d CONFIG_LTO_CLANG_THIN -d CONFIG_CFI_CLANG -d CONFIG_DEBUG_INFO_BTF \
           --set-str CONFIG_LOCALVERSION "-android13-3-34492332"
         make -j$(nproc) ARCH=arm64 LLVM=1 LLVM_IAS=1 gki_defconfig modules_prepare
