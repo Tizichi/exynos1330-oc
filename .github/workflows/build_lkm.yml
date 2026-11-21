@@ -92,7 +92,7 @@ jobs:
           --set-str CONFIG_LOCALVERSION "-android13-3-34492332"
         make -j$(nproc) ARCH=arm64 LLVM=1 LLVM_IAS=1 gki_defconfig modules_prepare
         touch Module.symvers
-        make -C $GITHUB_WORKSPACE/kernel_src M=$GITHUB_WORKSPACE ARCH=arm64 LLVM=1 LLVM_IAS=1 KCFLAGS="-Wno-error" modules
+        make -C $GITHUB_WORKSPACE/kernel_src M=$GITHUB_WORKSPACE ARCH=arm64 LLVM=1 LLVM_IAS=1 KCFLAGS="-Wno-error" KBUILD_MODPOST_WARN=1 modules
         modinfo $GITHUB_WORKSPACE/exynos_oc.ko
     - uses: actions/upload-artifact@v4
       with:
