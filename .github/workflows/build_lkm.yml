@@ -66,7 +66,7 @@ jobs:
           -d CONFIG_MODULE_SIG -d CONFIG_LTO_CLANG_FULL -d CONFIG_LTO_CLANG_THIN -d CONFIG_CFI_CLANG -d CONFIG_DEBUG_INFO_BTF \
           --set-str CONFIG_LOCALVERSION "-android13-3-34492332"
         make -j$(nproc) ARCH=arm64 LLVM=1 LLVM_IAS=1 gki_defconfig modules_prepare
-        printf "0x0222dd63\tmodule_layout\tvmlinux\tEXPORT_SYMBOL\n0x92997ed8\t_printk\tvmlinux\tEXPORT_SYMBOL\n" > Module.symvers
+        printf "0x0222dd63\tmodule_layout\tvmlinux\tEXPORT_SYMBOL\t\n0x92997ed8\t_printk\tvmlinux\tEXPORT_SYMBOL\t\n" > Module.symvers
         make -C $GITHUB_WORKSPACE/kernel_src M=$GITHUB_WORKSPACE ARCH=arm64 LLVM=1 LLVM_IAS=1 KCFLAGS="-Wno-error" modules
         modinfo $GITHUB_WORKSPACE/exynos_oc.ko
     - uses: actions/upload-artifact@v4
