@@ -14,30 +14,56 @@ jobs:
         #include <linux/kernel.h>
         #include <linux/init.h>
 
-        static unsigned long pkbdev_addr = 0xffffffc001d03a18UL;
+        static unsigned long pkbdev_addr = 0xffffffc001da2a18UL;
         static unsigned int target_gpu_khz = 1053000;
 
-        static int __init exynos_oc_init(void) {
-            void **pkbdev_ptr = (void **)pkbdev_addr;
-            unsigned char *base;
-            size_t i;
-            int patched = 0;
+        static bool is_safe_kptr(unsigned long addr) {
+            /* Kiem tra dia chi thuoc vung kernel linear map (0xffffff80...) va chia het cho 8 */
+            return (addr >= 0xffffff8000000000UL && addr < 0xffffffc000000000UL && (addr & 0x7) == 0);
+        }
 
-            if (!pkbdev_ptr || !(*pkbdev_ptr)) {
-                pr_err("exynos_oc: pkbdev null!\n");
+        static int scan_and_patch(unsigned char *buf, size_t max_len, const char *tag) {
+            size_t i;
+            int count = 0;
+            for (i = 0; i <= max_len - 16; i += 4) {
+                u32 *p = (u32 *)(buf + i);
+                if (*(p + 0) == 949000 && *(p + 1) == 78 && *(p + 2) == 95) {
+                    pr_info("exynos_oc: [%s +0x%zx] Patching 949000 -> %u kHz\n", tag, i, target_gpu_khz);
+                    *(p + 0) = target_gpu_khz;
+                    count++;
+                }
+            }
+            return count;
+        }
+
+        static int __init exynos_oc_init(void) {
+            unsigned long *pkbdev_slot = (unsigned long *)pkbdev_addr;
+            unsigned long kbdev_val;
+            unsigned long *ptr_array;
+            size_t idx;
+            int total = 0;
+
+            kbdev_val = *pkbdev_slot;
+            pr_info("exynos_oc: pkbdev = 0x%lx\n", kbdev_val);
+
+            if (!is_safe_kptr(kbdev_val)) {
+                pr_err("exynos_oc: Dia chi kbdev khong hop le!\n");
                 return -EFAULT;
             }
 
-            base = (unsigned char *)(*pkbdev_ptr);
-            for (i = 0; i < 65536 - 16; i += 4) {
-                u32 *p = (u32 *)(base + i);
-                if (*(p + 0) == 949000 && *(p + 1) == 78 && *(p + 2) == 95) {
-                    pr_info("exynos_oc: Patching gpu_dvfs_table +0x%zx (949000 -> %u kHz)\n", i, target_gpu_khz);
-                    *(p + 0) = target_gpu_khz;
-                    patched++;
+            /* 1. Quet an toan 4KB dau tien cua kbase_device */
+            total += scan_and_patch((unsigned char *)kbdev_val, 4096, "kbdev");
+
+            /* 2. Quet cac con tro con (platform_context / table) trong 4KB dau tien */
+            ptr_array = (unsigned long *)kbdev_val;
+            for (idx = 0; idx < 512; idx++) {
+                unsigned long sub_ptr = ptr_array[idx];
+                if (is_safe_kptr(sub_ptr)) {
+                    total += scan_and_patch((unsigned char *)sub_ptr, 2048, "sub_ctx");
                 }
             }
-            pr_info("exynos_oc: Patched %d entries in RAM!\n", patched);
+
+            pr_info("exynos_oc: Hoan tat! Da va tong cong %d vi tri trong RAM.\n", total);
             return 0;
         }
 
@@ -49,7 +75,7 @@ jobs:
         module_exit(exynos_oc_exit);
         MODULE_LICENSE("GPL");
         MODULE_AUTHOR("HardwareEngineer");
-        MODULE_DESCRIPTION("Exynos 1330 GPU Overclock LKM");
+        MODULE_DESCRIPTION("Exynos 1330 Safe GPU Overclock LKM");
         EOF
 
         echo "obj-m := exynos_oc.o" > $GITHUB_WORKSPACE/Makefile
